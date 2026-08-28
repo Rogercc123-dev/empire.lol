@@ -22,21 +22,29 @@ const LINKS=[
 ['internet','ai',3],['internet','software',3],['internet','gaming',2],['internet','youtube',2],['internet','marketing',2],['future','ai',2],['future','space',2],['cars','electric-cars',3],['cars','engineering',1],['education','university',3],['business','money',2],['design','art',2],['design','web-development',2],['fitness','sports',2],['food','travel',1],['coffee','culture',1]
 ];
 function priceFor(t){return t.owner?Math.max(t.stake+2,Math.ceil(t.stake*1.1)):t.price;}
-const seededLayout=createOrganicLayout(territories,LINKS);
-const seededPositions=Object.fromEntries(seededLayout.map(n=>[n.id,n]));
-
+function quickStartPositions(nodes,width=1820,height=1080){
+ const counts=Object.fromEntries(CATEGORY_ORDER.map(c=>[c,0]));
+ return Object.fromEntries(nodes.map(n=>{const i=counts[n.category]++;const [cx,cy]=CATEGORY_CENTRES[n.category]||[width/2,height/2];const angle=(i*2.3999632297)+(n.price%7)*.17;const radius=55+(i%5)*34;const x=cx+Math.cos(angle)*radius+Math.sin(i*1.7)*28;const y=cy+Math.sin(angle)*radius+Math.cos(i*1.3)*24;return [n.id,{...n,x,y}]}));
+}
+const initialPositions=quickStartPositions(territories);
 function App(){
- const [items,setItems]=useState(territories),[active,setActive]=useState(null),[hovered,setHovered]=useState(null),[query,setQuery]=useState(''),[category,setCategory]=useState('All'),[zoom,setZoom]=useState(.9),[pan,setPan]=useState({x:0,y:0}),[dragging,setDragging]=useState(false),[positions,setPositions]=useState(seededPositions);
+ const [items,setItems]=useState(territories),[active,setActive]=useState(null),[hovered,setHovered]=useState(null),[query,setQuery]=useState(''),[category,setCategory]=useState('All'),[zoom,setZoom]=useState(.9),[pan,setPan]=useState({x:0,y:0}),[dragging,setDragging]=useState(false),[positions,setPositions]=useState(initialPositions);
  const dragRef=useRef(null),mapRef=useRef(null);
  const filtered=useMemo(()=>items.filter(t=>(category==='All'||t.category===category)&&t.name.toLowerCase().includes(query.toLowerCase())),[items,category,query]);
  const visibleIds=useMemo(()=>new Set(filtered.map(t=>t.id)),[filtered]);
  const linkedIds=useMemo(()=>linkedNodeSet(hovered,LINKS),[hovered]);
  const activeTerritory=active?items.find(t=>t.id===active):null;
  const totalValue=items.reduce((s,t)=>s+(t.owner?t.stake:0),0),owned=items.filter(t=>t.owner).length;
- const mapNodes=filtered.map(t=>({...t,...(positions[t.id]||{})}));
+ const mapNodes=filtered.map(t=>({...t,...(positions[t.id]||quickStartPositions([t])[t.id])}));
  const mapLinks=LINKS.filter(([a,b])=>visibleIds.has(a)&&visibleIds.has(b));
  const categories=['All',...CATEGORY_ORDER];
- useEffect(()=>{const next=createOrganicLayout(items,LINKS);setPositions(Object.fromEntries(next.map(n=>[n.id,n])));},[items]);
+ useEffect(()=>{
+   const timer=setTimeout(()=>{
+     const next=createOrganicLayout(items,LINKS);
+     setPositions(Object.fromEntries(next.map(n=>[n.id,n])));
+   },80);
+   return()=>clearTimeout(timer);
+ },[category,query]);
  useEffect(()=>{const el=mapRef.current;if(!el)return;const wheel=e=>{e.preventDefault();const f=e.deltaY>0?.93:1.075;setZoom(z=>Math.min(1.5,Math.max(.62,+(z*f).toFixed(3))))};el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel)},[]);
  function startDrag(e){if(e.button!==0||e.target.closest('.map-node,.map-controls'))return;dragRef.current={x:e.clientX-pan.x,y:e.clientY-pan.y};setDragging(true);e.currentTarget.setPointerCapture?.(e.pointerId)}
  function moveDrag(e){if(dragRef.current)setPan({x:e.clientX-dragRef.current.x,y:e.clientY-dragRef.current.y})}
@@ -47,7 +55,7 @@ function App(){
  return <div className="app-shell">
   <header className="topbar"><a className="brand" href="#top">EMPIRE<span>.LOL</span></a><nav><a href="#map">Map</a><a href="#leaderboard">Leaderboard</a><a href="#activity">Activity</a><a href="#how">How it works</a></nav><button className="ghost-btn">Build your empire <ArrowUpRight size={15}/></button></header>
   <main id="top">
-   <section className="hero"><div className="hero-copy"><div className="eyebrow"><span className="live-dot"/> THE INTERNET IS FOR SALE</div><h1>OWN THE<br/><em>INTERNET.</em></h1><p>A living map of ideas, places and culture. Find something you care about, then make it yours.</p><div className="hero-actions"><a className="primary-btn" href="#map">Explore the map <ArrowUpRight size={16}/></a><a className="text-link" href="#how">How it works <ArrowUpRight size={15}/></a></div></div><div className="hero-stat-card"><div className="stat-card-label">LIVE EMPIRE VALUE</div><div className="big-number">£{totalValue.toLocaleString()}</div><div className="mini-grid"><span><b>{owned}</b> territories owned</span><span><b>{items.length}</b> territories</span></div><div className="pulse-line"><span>●</span> Graph is live</div></div></section>
+   <section className="hero"><div className="hero-copy"><div className="eyebrow"><span className="live-dot"/> THE INTERNET IS FOR SALE</div><h1>OWN THE<br/><em>INTERNET.</em></h1><p>A living map of ideas, places and culture. Find something you care about, then make it yours.</p><div className="hero-actions"><a className="primary-btn" href="#map">Explore the map <ArrowUpRight size={16}/></a><a className="text-link" href="#how">How it works <ArrowUpRight size={15}/></a></div></div><div className="hero-stat-card"><div className="stat-card-label">LIVE EMPIRE VALUE</div><div className="big-number">£{totalValue.toLocaleString()}</div><div className="mini-grid"><span><b>{owned}</b> territories owned</span><span><b>{items.length}</b> territories</span></span></div><div className="pulse-line"><span>●</span> Graph is live</div></div></section>
    <section id="map" className="map-section"><div className="section-head map-head"><div><span className="kicker">01 / THE MAP</span><h2>Explore the internet.</h2><p className="map-subtitle">A living graph of ideas. Related things cluster naturally; distant niches drift apart.</p></div><div className="map-tools"><div className="search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find a territory"/></div><div className="zoom-readout">{Math.round(zoom*100)}%</div></div></div><div className="map-filter-bar"><div className="chips">{categories.map(c=><button key={c} className={category===c?'chip active':'chip'} onClick={()=>setCategory(c)}>{c}</button>)}</div><div className="map-help"><MousePointer2 size={13}/> hover to reveal connections <span>·</span> drag to roam <span>·</span> scroll to zoom</div></div>
     <div ref={mapRef} className={`map-viewport ${dragging?'is-dragging':''}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
      <div className="map-backdrop"><div className="glow glow-1"/><div className="glow glow-2"/><div className="glow glow-3"/></div>
@@ -58,7 +66,7 @@ function App(){
      </div>
      <div className="map-legend"><span><i className="legend-dot open"/> open</span><span><i className="legend-dot owned"/> owned</span><span><i className="legend-line"/> related</span></div>
      <div className="map-hint"><Grip size={13}/><span>Drag to explore</span><span className="slash"/> <span>Scroll to zoom</span></div>
-     <div className="map-controls"><button onClick={()=>changeZoom(.12)} aria-label="Zoom in"><ZoomIn size={16}/></button><button onClick={()=>changeZoom(-.12)} aria-label="Zoom out"><ZoomOut size={16}/></button><button onClick={resetView} aria-label="Reset map"><RotateCcw size={15}/></button></div>
+     <div className="map-controls"><button className="map-control" onClick={()=>changeZoom(.12)} aria-label="Zoom in"><ZoomIn size={16}/></button><button className="map-control" onClick={()=>changeZoom(-.12)} aria-label="Zoom out"><ZoomOut size={16}/></button><button className="map-control" onClick={resetView} aria-label="Reset map"><RotateCcw size={15}/></button></div>
     </div>
    </section>
    <section className="split-section"><div className="panel" id="activity"><div className="panel-head"><div><span className="kicker">02 / ACTIVITY</span><h3>Live conquests.</h3></div><span className="live-badge">● LIVE</span></div>{[['@northstar','conquered','AI','£32','2m'],['@orbital','defended','SPACE','£47','7m'],['@foundry','conquered','IRELAND','£27','13m'],['@pixelworks','conquered','GAMING','£41','21m']].map((r,i)=><div className="activity-row" key={i}><div className="activity-icon">{r[1]==='defended'?<Shield size={15}/>:<Flame size={15}/>}</div><div className="activity-copy"><b>{r[0]}</b> {r[1]} <strong>{r[2]}</strong><span>{r[4]} ago</span></div><div className="activity-price">{r[3]}</div></div>)}</div><div className="panel" id="leaderboard"><div className="panel-head"><div><span className="kicker">03 / RANKINGS</span><h3>Top empires.</h3></div><Crown size={18}/></div>{[['@orbital','£482'],['@northstar','£321'],['@pixelworks','£241'],['@foundry','£187'],['@luma','£96']].map(([u,v],i)=><div className="rank-row" key={u}><span className="rank">0{i+1}</span><span className="rank-user">{u}</span><strong>{v}</strong></div>)}</div></section>
